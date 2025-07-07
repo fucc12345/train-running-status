@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Train Status Search (Final Version)</title>
+    <style>
+        /* CSS is identical to the previous version */
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f4f7f6; color: #333; margin: 0; padding: 20px; }
+        .container { width: 100%; max-width: 700px; margin: 0 auto; background-color: #ffffff; padding: 20px 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); }
+        h1 { text-align: center; color: #2c3e50; }
+        .status-message { padding: 15px; text-align: center; color: #888; }
+        .error-message { color: #e74c3c; font-weight: bold; }
+
+        /* Search View */
+        #trainSearchInput { width: 100%; padding: 12px 15px; font-size: 16px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+        #search-results .train-item { padding: 12px 15px; border-bottom: 1px solid #e0e0e0; cursor: pointer; transition: background-color 0.2s; }
+        #search-results .train-item:hover { background-color: #f0f8ff; }
+        #search-results .train-item:last-child { border-bottom: none; }
+        #search-results .number { font-weight: bold; color: #3498db; }
+        #search-results .name { color: #555; }
+
+        /* Status View */
+        #status-view { display: none; }
+        .status-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
+        .status-header h2 { margin: 0; font-size: 22px; color: #2c3e50; line-height: 1.2; }
+        #back-to-search { background-color: #e74c3c; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 14px; }
+        #back-to-search:hover { background-color: #c0392b; }
+        
+        /* Selectors */
+        .selector-box { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; padding: 15px; background-color: #f9f9f9; border: 1px solid #eee; border-radius: 5px; margin-bottom: 20px; }
+        .selector-box select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; background-color: white; }
+        .selector-box button { padding: 8px 15px; background-color: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .selector-box button:hover { background-color: #2980b9; }
+
+        /* Live Update Box */
+        .train-update { background-color: #eafaf1; border: 1px solid #d1f0e0; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+        .train-update__status { font-size: 16px; font-weight: 500; }
+        .train-update__time { color: #858585; font-size: 12px; margin-top: 5px; }
+
+        /* Station List */
+        .station-list-header { display: grid; grid-template-columns: 2.2fr 1fr 1fr 1fr 1fr; padding: 0 10px 10px 10px; font-weight: bold; font-size: 12px; color: #888; border-bottom: 2px solid #f0f0f0; }
+        .station-list-header .col-station { padding-left: 25px; }
+        .station-row { display: grid; grid-template-columns: 2.2fr 1fr 1fr 1fr 1fr; align-items: center; padding: 12px 10px; border-bottom: 1px solid #f0f0f0; background-color: #fff; font-size: 14px; }
+        .station-row:last-child { border-bottom: none; }
+        .station-row.has-departed { color: #999; background-color: #fcfcfc; }
+        .station-info { display: flex; align-items: center; }
+        .delay-info.on-time { color: #27ae60; }
+        .delay-info.late { color: #e74c3c; font-weight: bold; }
+        
+        /* Live Dot and Icons */
+        .circle-container { width: 14px; margin-right: 10px; display: flex; justify-content: center; align-items: center; }
+        .circle-thin { border: 1.5px solid #bdc3c7; background-color: #FFFFFF; height: 12px; border-radius: 50%; width: 12px; }
+        .circle.blink { background-color: #2ecc71; border-radius: 50%; width: 14px; height: 14px; animation: blink-animation 1.5s infinite; }
+        @keyframes blink-animation { 0% { transform: scale(0.8); opacity: 0.5; } 50% { transform: scale(1.2); opacity: 1; } 100% { transform: scale(0.8); opacity: 0.5; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="search-view">
+            <h1>Live Train Status Search</h1>
+            <input type="search" id="trainSearchInput" placeholder="Type a train number">
+            <div id="search-results"><p class="status-message">Type a number to see results.</p></div>
+        </div>
+        <div id="status-view"></div>
+    </div>
+
+    <script>
+        const searchView = document.getElementById('search-view');
+        const statusView = document.getElementById('status-view');
+        const searchInput = document.getElementById('trainSearchInput');
+        const searchResultsContainer = document.getElementById('search-results');
+        
+        const SEARCH_API_URL = 'https://api.confirmtkt.com/api/trains/search';
+        const PROXY_URL = 'https://train-irctc.bhargavtodimela4.workers.dev/';
+        const TARGET_WEBPAGE_URL = 'https://www.confirmtkt.com/train-running-status/';
+        let currentTrainNumber = null;
+
+        searchInput.addEventListener('input', handleSearchInput);
+        searchResultsContainer.addEventListener('click', handleResultClick);
+
+        async function handleSearchInput(event) {
+            const query = event.target.value.trim();
+            if (query.length < 2) {
+                searchResultsContainer.innerHTML = '<p class="status-message">Type at least 2 digits.</p>';
+                return;
+            }
+            searchResultsContainer.innerHTML = '<p class="status-message">Searching...</p>';
+            try {
+                const response = await fetch(`${SEARCH_API_URL}?text=${query}`);
+                if (!response.ok) throw new Error('Search API failed.');
+                const trains = await response.json();
+                if (!trains || trains.length === 0) {
+                    searchResultsContainer.innerHTML = '<p class="status-message">No trains found.</p>';
+                } else {
+                    searchResultsContainer.innerHTML = trains.map(train => `
+                        <div class="train-item" data-train-number="${train.Key}">
+                            <span class="number">${train.Key}</span> - <span class="name">${train.Value}</span>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                searchResultsContainer.innerHTML = `<p class="status-message error-message">Could not fetch search results.</p>`;
+            }
+        }
+
+        function handleResultClick(event) {
+            const trainItem = event.target.closest('.train-item');
+            if (trainItem) {
+                currentTrainNumber = trainItem.dataset.trainNumber;
+                fetchAndDisplayTrainStatus(currentTrainNumber);
+            }
+        }
+        
+        async function fetchAndDisplayTrainStatus(trainNumber, stationParam = null, dateParam = null) {
+            searchView.style.display = 'none';
+            statusView.style.display = 'block';
+            statusView.innerHTML = '<p class="status-message">Fetching status via your proxy...</p>';
+            
+            let targetUrl = `${TARGET_WEBPAGE_URL}${trainNumber}`;
+            if (stationParam && dateParam) {
+                targetUrl += `?StationName=${stationParam}&Date=${dateParam}`;
+            }
+            const proxiedUrl = `${PROXY_URL}?url=${encodeURIComponent(targetUrl)}`;
+
+            try {
+                const response = await fetch(proxiedUrl);
+                if (!response.ok) throw new Error(`Proxy fetch failed: ${response.statusText}`);
+                const htmlText = await response.text();
+                statusView.innerHTML = '<p class="status-message">Parsing data...</p>';
+
+                // --- ROBUST MULTI-STEP PARSING LOGIC ---
+                const dataRegex = /var\s+data\s*=\s*(\{.*?\});/s;
+                const dataMatch = htmlText.match(dataRegex);
+                
+                const currentStationCodeRegex = /var\s+currentStnCode\s*=\s*"(.*?)";/;
+                const currentStationMatch = htmlText.match(currentStationCodeRegex);
+                
+                const currentStationNameRegex = /var\s+currentStnName\s*=\s*"(.*?)";/;
+                const currentStationNameMatch = htmlText.match(currentStationNameRegex);
+                
+                const statusTextRegex = /<div class="train-update__status">([\s\S]*?)<\/div>/;
+                const statusTextMatch = htmlText.match(statusTextRegex);
+                
+                const lastUpdatedRegex = /<div class="train-update__time">([\s\S]*?)<\/div>/;
+                const lastUpdatedMatch = htmlText.match(lastUpdatedRegex);
+
+                if (!dataMatch || !currentStationMatch || !statusTextMatch || !lastUpdatedMatch) {
+                    throw new Error("Could not parse critical data. The train may not be running on the selected date, or the website's structure has changed.");
+                }
+
+                const data = JSON.parse(dataMatch[1]);
+                const currentStationCode = currentStationMatch[1];
+                const currentStationName = currentStationNameMatch ? currentStationNameMatch[1] : data.Source;
+                const rawStatusText = statusTextMatch[1];
+                const rawLastUpdatedTime = lastUpdatedMatch[1];
+                
+                renderTrainStatus(data, currentStationCode, currentStationName, rawStatusText, rawLastUpdatedTime, stationParam, dateParam);
+
+            } catch (error) {
+                console.error("Status Fetch/Parse Error:", error);
+                statusView.innerHTML = `
+                    <div class="status-header"><h2>Error</h2><button id="back-to-search">Back</button></div>
+                    <p class="status-message error-message">${error.message}</p>`;
+                document.getElementById('back-to-search').addEventListener('click', showSearchView);
+            }
+        }
+
+        function renderTrainStatus(data, currentStationCode, currentStationName, rawStatusText, rawLastUpdatedTime, selectedStationParam, selectedDateParam) {
+            // --- FINAL, CORRECTED STATUS TEXT LOGIC ---
+            const statusTextPrefix = rawStatusText.replace(/<span.*?>.*?<\/span>/g, '').replace(/ /g, ' ').trim();
+            const statusText = `${statusTextPrefix} ${currentStationName}`;
+            
+            const lastUpdatedTime = rawLastUpdatedTime.replace(/<[^>]*>| /g, ' ').replace(/\s+/g, ' ').trim();
+
+            const schedule = data.Schedule.filter(Boolean);
+            const currentStationIndex = schedule.findIndex(s => s.StationCode === currentStationCode);
+            
+            const dateOptions = generateDateOptions(selectedDateParam);
+            const stationOptions = schedule.map(station => {
+                const stationParamValue = `${station.StationName.replace(/\s+/g, '-')}-${station.StationCode}`;
+                const isSelected = selectedStationParam ? (stationParamValue === selectedStationParam) : (station.StationCode === data.SourceCode);
+                return `<option value="${stationParamValue}" ${isSelected ? 'selected' : ''}>${station.StationName}</option>`;
+            }).join('');
+            
+            const journeyDate = selectedDateParam ? selectedDateParam.split('-').slice(0, 2).join('-') : new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).replace(' ', '-');
+
+            statusView.innerHTML = `
+                <div class="status-header">
+                    <h2>${data.TrainNo} - ${data.TrainName}</h2>
+                    <button id="back-to-search">Back to Search</button>
+                </div>
+                
+                <div class="selector-box">
+                    <select id="selectStation">${stationOptions}</select>
+                    <select id="selectDate">${dateOptions}</select>
+                    <button id="refreshStatus">Refresh</button>
+                </div>
+
+                <div class="train-update">
+                    <div class="train-update__status">${statusText}</div>
+                    <div class="train-update__time">${lastUpdatedTime}</div>
+                </div>
+                
+                <div class="station-list-header">
+                    <div class="col-station">Station</div><div>Date</div><div>Arrival</div><div>Departure</div><div>Delay</div>
+                </div>
+                <div id="station-list-container">
+                    ${schedule.map((station, index) => {
+                        const hasDeparted = index < currentStationIndex;
+                        const isCurrent = index === currentStationIndex;
+                        const hasDepartedClass = hasDeparted ? 'has-departed' : '';
+                        
+                        const delayString = (station.arrivalDelay || station.departureDelay || "-").trim().replace(/-\s*$/, 'Right Time');
+                        let delayHtml = `<div class="delay-info on-time">${delayString}</div>`;
+                        if (delayString.toLowerCase().includes("min")) {
+                            delayHtml = `<div class="delay-info late">${delayString}</div>`;
+                        }
+                        
+                        let circleHtml = `<div class="circle-thin"></div>`;
+                        if (isCurrent) circleHtml = `<div class="circle blink"></div>`;
+                        if (hasDeparted) circleHtml = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="#2ecc71" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M10.97 4.97a.235.235 0 0 0-.02.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-1.071-1.05z"/></svg>`;
+
+                        const displayDate = (station.Day > 1 && selectedDateParam) 
+                            ? getOffsetDate(selectedDateParam, station.Day - 1) 
+                            : journeyDate;
+
+                        return `
+                        <div class="station-row ${hasDepartedClass}">
+                            <div class="station-info">
+                                <div class="circle-container">${circleHtml}</div>
+                                <span>${station.StationName}</span>
+                            </div>
+                            <div>Day ${station.Day} / ${displayDate}</div>
+                            <div>${station.ArrivalTime || '----'}</div>
+                            <div>${station.DepartureTime || '----'}</div>
+                            <div>${delayHtml}</div>
+                        </div>`;
+                    }).join('')}
+                </div>
+            `;
+            document.getElementById('back-to-search').addEventListener('click', showSearchView);
+            document.getElementById('refreshStatus').addEventListener('click', handleRefreshStatus);
+        }
+
+        function handleRefreshStatus() {
+            const selectedStation = document.getElementById('selectStation').value;
+            const selectedDate = document.getElementById('selectDate').value;
+            if (currentTrainNumber && selectedStation && selectedDate) {
+                fetchAndDisplayTrainStatus(currentTrainNumber, selectedStation, selectedDate);
+            }
+        }
+
+        function getOffsetDate(baseDate, offset) {
+            const monthMap = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 };
+            const parts = baseDate.split('-');
+            const date = new Date(parts[2], monthMap[parts[1]], parts[0]);
+            date.setDate(date.getDate() + offset);
+            return `${String(date.getDate()).padStart(2, '0')}-${Object.keys(monthMap).find(key => monthMap[key] === date.getMonth())}`;
+        }
+
+        function generateDateOptions(selectedDate) {
+            let options = '';
+            const today = new Date();
+            const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            const days = [{ label: 'Yesterday', offset: -1 }, { label: 'Today', offset: 0 }, { label: 'Tomorrow', offset: 1 }];
+            days.forEach(dayInfo => {
+                const date = new Date();
+                date.setDate(today.getDate() + dayInfo.offset);
+                const day = String(date.getDate()).padStart(2, '0');
+                const month = monthNames[date.getMonth()];
+                const year = date.getFullYear();
+                const value = `${day}-${month}-${year}`;
+                const isSelected = (value === selectedDate) || (!selectedDate && dayInfo.label === 'Today');
+                options += `<option value="${value}" ${isSelected ? 'selected' : ''}>${dayInfo.label} ${day} ${month}</option>`;
+            });
+            return options;
+        }
+
+        function showSearchView() {
+            statusView.style.display = 'none';
+            statusView.innerHTML = '';
+            searchView.style.display = 'block';
+            searchInput.value = '';
+            searchResultsContainer.innerHTML = '<p class="status-message">Type a number to see results.</p>';
+            currentTrainNumber = null;
+        }
+    </script>
+</body>
+</html>
