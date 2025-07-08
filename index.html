@@ -15,7 +15,7 @@
     }
 
     .dark-mode {
-      background: #111;
+      background: #121212;
       color: #eee;
     }
 
@@ -151,7 +151,7 @@
         return;
       }
 
-      // Calculate days
+      // Calculate days and weeks
       const msPerDay = 1000 * 60 * 60 * 24;
       let daysLeft = Math.floor((endDate - startDate) / msPerDay);
       if (includeToday) daysLeft += 1;
@@ -161,7 +161,7 @@
       document.getElementById("weeks").textContent = weeksLeft;
       document.getElementById("result").style.display = "block";
 
-      // Time until 00:00 AM of end date
+      // Time left in hours, minutes, seconds from NOW to 00:00 AM of end date
       function updateTimeLeft() {
         const now = new Date();
         const midnightEnd = new Date(endDateStr + "T00:00:00");
@@ -173,12 +173,11 @@
           return;
         }
 
+        const totalHours = Math.floor(diffMs / (1000 * 60 * 60));
+        const totalMinutes = Math.floor(diffMs / (1000 * 60));
         const totalSeconds = Math.floor(diffMs / 1000);
-        const hours = Math.floor(totalSeconds / 3600);
-        const minutes = Math.floor((totalSeconds % 3600) / 60);
-        const seconds = totalSeconds % 60;
 
-        showTime(hours, minutes, seconds);
+        showTime(totalHours, totalMinutes, totalSeconds);
       }
 
       function showTime(h, m, s) {
