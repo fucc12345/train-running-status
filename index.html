@@ -1,23 +1,36 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Exact Countdown</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <title>Countdown Timer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     body {
       font-family: Arial, sans-serif;
       background: #f2f2f2;
+      color: #222;
+      margin: 0;
       padding: 20px;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    .dark-mode {
+      background: #111;
+      color: #eee;
     }
 
     .container {
-      max-width: 400px;
+      max-width: 420px;
       margin: auto;
       background: white;
       padding: 20px;
-      border-radius: 10px;
+      border-radius: 12px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      transition: background 0.3s;
+    }
+
+    .dark-mode .container {
+      background: #1e1e1e;
     }
 
     h2 {
@@ -26,34 +39,45 @@
     }
 
     label {
-      font-weight: bold;
       display: block;
-      margin-top: 10px;
+      margin-top: 12px;
+      font-weight: bold;
     }
 
     input[type="date"] {
       width: 100%;
       padding: 10px;
+      margin-top: 6px;
       font-size: 16px;
-      margin-top: 5px;
       border: 1px solid #ccc;
       border-radius: 6px;
     }
 
+    input[type="checkbox"] {
+      margin-right: 5px;
+    }
+
+    .toggle {
+      margin-top: 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
     button {
       width: 100%;
-      margin-top: 20px;
       padding: 12px;
-      font-size: 16px;
-      background: #007bff;
+      margin-top: 20px;
+      background-color: #007bff;
       color: white;
       border: none;
       border-radius: 6px;
+      font-size: 16px;
       cursor: pointer;
     }
 
     button:hover {
-      background: #0056b3;
+      background-color: #0056b3;
     }
 
     .result {
@@ -68,6 +92,11 @@
   </style>
 </head>
 <body>
+
+  <div class="toggle">
+    <label><input type="checkbox" id="includeToday">Include Present Day</label>
+    <label><input type="checkbox" id="darkModeToggle" onchange="toggleDarkMode()">Dark Mode</label>
+  </div>
 
   <div class="container">
     <h2>Countdown Timer</h2>
@@ -90,19 +119,24 @@
   </div>
 
   <script>
+    let interval;
+
     window.onload = () => {
       const today = new Date().toISOString().split("T")[0];
       document.getElementById("startDate").value = today;
       document.getElementById("endDate").value = today;
     };
 
-    let interval;
+    function toggleDarkMode() {
+      document.body.classList.toggle("dark-mode");
+    }
 
     function calculateCountdown() {
       clearInterval(interval);
 
       const startDateStr = document.getElementById("startDate").value;
       const endDateStr = document.getElementById("endDate").value;
+      const includeToday = document.getElementById("includeToday").checked;
 
       if (!startDateStr || !endDateStr) {
         alert("Please select both dates.");
@@ -117,30 +151,29 @@
         return;
       }
 
-      // Calculate DAYS and WEEKS (no current time included)
+      // Calculate days
       const msPerDay = 1000 * 60 * 60 * 24;
-      const daysLeft = Math.floor((endDate - startDate) / msPerDay);
+      let daysLeft = Math.floor((endDate - startDate) / msPerDay);
+      if (includeToday) daysLeft += 1;
       const weeksLeft = (daysLeft / 7).toFixed(2);
 
       document.getElementById("days").textContent = daysLeft;
       document.getElementById("weeks").textContent = weeksLeft;
-
-      // Show result box
       document.getElementById("result").style.display = "block";
 
-      // Live update for time left until 00:00 AM of destination date
+      // Time until 00:00 AM of end date
       function updateTimeLeft() {
         const now = new Date();
-        const targetMidnight = new Date(endDateStr + "T00:00:00");
-        const diff = targetMidnight - now;
+        const midnightEnd = new Date(endDateStr + "T00:00:00");
+        const diffMs = midnightEnd - now;
 
-        if (diff <= 0) {
+        if (diffMs <= 0) {
           clearInterval(interval);
           showTime(0, 0, 0);
           return;
         }
 
-        const totalSeconds = Math.floor(diff / 1000);
+        const totalSeconds = Math.floor(diffMs / 1000);
         const hours = Math.floor(totalSeconds / 3600);
         const minutes = Math.floor((totalSeconds % 3600) / 60);
         const seconds = totalSeconds % 60;
