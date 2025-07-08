@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Accurate Countdown</title>
+  <title>Day Countdown</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body {
@@ -78,83 +78,52 @@
     <label for="endDate">End Date</label>
     <input type="date" id="endDate">
 
-    <button onclick="startCountdown()">Calculate</button>
+    <button onclick="calculateDays()">Calculate</button>
 
-    <div class="result" id="result">
-      <div><strong>Days Left:</strong> <span id="days">0</span></div>
-      <div><strong>Weeks Left:</strong> <span id="weeks">0</span></div>
-      <div><strong>Hours Left:</strong> <span id="hours">0</span></div>
-      <div><strong>Minutes Left:</strong> <span id="minutes">0</span></div>
-      <div><strong>Seconds Left:</strong> <span id="seconds">0</span></div>
+    <div id="result" class="result">
+      <div><strong>Total Days Left:</strong> <span id="days">0</span></div>
+      <div><strong>Total Weeks:</strong> <span id="weeks">0</span></div>
     </div>
   </div>
 
   <script>
-    // Set default dates
+    // Set default date
     window.onload = () => {
       const today = new Date().toISOString().split('T')[0];
       document.getElementById("startDate").value = today;
       document.getElementById("endDate").value = today;
     };
 
-    let interval;
-
-    function startCountdown() {
-      clearInterval(interval);
-
+    function calculateDays() {
       const startValue = document.getElementById("startDate").value;
       const endValue = document.getElementById("endDate").value;
 
       if (!startValue || !endValue) {
-        alert("Select both dates.");
+        alert("Please select both dates.");
         return;
       }
 
-      const startDate = new Date(startValue + "T00:00:00");
-      const endDate = new Date(endValue + "T23:59:59");
+      const startDate = new Date(startValue);
+      const endDate = new Date(endValue);
 
-      if (endDate <= startDate) {
+      if (endDate < startDate) {
         alert("End date must be after start date.");
         return;
       }
 
+      // Reset time to ignore hours/minutes
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(0, 0, 0, 0);
+
+      const msPerDay = 1000 * 60 * 60 * 24;
+      const diffDays = Math.floor((endDate - startDate) / msPerDay);
+      const weeks = (diffDays / 7).toFixed(2);
+
+      document.getElementById("days").textContent = diffDays;
+      document.getElementById("weeks").textContent = weeks;
       document.getElementById("result").style.display = "block";
-
-      function update() {
-        const now = new Date();
-        const base = now > startDate ? now : startDate;
-        let remaining = endDate - base;
-
-        if (remaining <= 0) {
-          clearInterval(interval);
-          show(0, 0, 0, 0, 0);
-          return;
-        }
-
-        const days = Math.floor(remaining / (1000 * 60 * 60 * 24));
-        const weeks = (days / 7).toFixed(2);
-
-        remaining %= (1000 * 60 * 60 * 24);
-        const hours = Math.floor(remaining / (1000 * 60 * 60));
-        remaining %= (1000 * 60 * 60);
-        const minutes = Math.floor(remaining / (1000 * 60));
-        remaining %= (1000 * 60);
-        const seconds = Math.floor(remaining / 1000);
-
-        show(days, weeks, hours, minutes, seconds);
-      }
-
-      function show(d, w, h, m, s) {
-        document.getElementById("days").textContent = d;
-        document.getElementById("weeks").textContent = w;
-        document.getElementById("hours").textContent = h;
-        document.getElementById("minutes").textContent = m;
-        document.getElementById("seconds").textContent = s;
-      }
-
-      update();
-      interval = setInterval(update, 1000);
     }
   </script>
+
 </body>
 </html>
