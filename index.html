@@ -52,6 +52,15 @@
       font-size: 16px;
       border: 1px solid #ccc;
       border-radius: 6px;
+      background: white;
+      color: #000;
+    }
+
+    .dark-mode input[type="date"],
+    .dark-mode input[type="time"] {
+      background: #333;
+      color: #fff;
+      border: 1px solid #555;
     }
 
     input[type="checkbox"] {
@@ -108,7 +117,7 @@
     <label for="endDate">End Date</label>
     <input type="date" id="endDate">
 
-    <label for="endTime">End Time (optional)</label>
+    <label for="endTime">End Time</label>
     <input type="time" id="endTime" value="00:00">
 
     <button onclick="calculateCountdown()">Calculate</button>
@@ -129,6 +138,7 @@
       const today = new Date().toISOString().split("T")[0];
       document.getElementById("startDate").value = today;
       document.getElementById("endDate").value = today;
+      document.getElementById("endTime").value = "00:00";
     };
 
     function toggleDarkMode() {
@@ -152,11 +162,11 @@
       const endDate = new Date(endDateStr + "T" + endTimeStr);
 
       if (endDate <= startDate) {
-        alert("End date must be after start date.");
+        alert("End date/time must be after start date.");
         return;
       }
 
-      // Calculate days & weeks left
+      // Calculate days & weeks
       const msPerDay = 1000 * 60 * 60 * 24;
       let daysLeft = Math.floor((endDate - startDate) / msPerDay);
       if (includeToday) daysLeft += 1;
