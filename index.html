@@ -44,7 +44,8 @@
       font-weight: bold;
     }
 
-    input[type="date"] {
+    input[type="date"],
+    input[type="time"] {
       width: 100%;
       padding: 10px;
       margin-top: 6px;
@@ -107,6 +108,9 @@
     <label for="endDate">End Date</label>
     <input type="date" id="endDate">
 
+    <label for="endTime">End Time (optional)</label>
+    <input type="time" id="endTime" value="00:00">
+
     <button onclick="calculateCountdown()">Calculate</button>
 
     <div class="result" id="result">
@@ -136,6 +140,7 @@
 
       const startDateStr = document.getElementById("startDate").value;
       const endDateStr = document.getElementById("endDate").value;
+      const endTimeStr = document.getElementById("endTime").value || "00:00";
       const includeToday = document.getElementById("includeToday").checked;
 
       if (!startDateStr || !endDateStr) {
@@ -144,14 +149,14 @@
       }
 
       const startDate = new Date(startDateStr + "T00:00:00");
-      const endDate = new Date(endDateStr + "T00:00:00");
+      const endDate = new Date(endDateStr + "T" + endTimeStr);
 
       if (endDate <= startDate) {
         alert("End date must be after start date.");
         return;
       }
 
-      // Calculate days and weeks
+      // Calculate days & weeks left
       const msPerDay = 1000 * 60 * 60 * 24;
       let daysLeft = Math.floor((endDate - startDate) / msPerDay);
       if (includeToday) daysLeft += 1;
@@ -161,11 +166,9 @@
       document.getElementById("weeks").textContent = weeksLeft;
       document.getElementById("result").style.display = "block";
 
-      // Time left in hours, minutes, seconds from NOW to 00:00 AM of end date
       function updateTimeLeft() {
         const now = new Date();
-        const midnightEnd = new Date(endDateStr + "T00:00:00");
-        const diffMs = midnightEnd - now;
+        const diffMs = endDate - now;
 
         if (diffMs <= 0) {
           clearInterval(interval);
