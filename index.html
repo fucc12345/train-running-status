@@ -3,19 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Live GPS Tracker</title>
+  <title>Live Speed & Location</title>
   <style>
     body {
       font-family: Arial, sans-serif;
       padding: 20px;
     }
-    input, button {
-      padding: 8px;
-      margin: 5px 0;
-      width: 100%;
-    }
     .info {
-      margin-top: 20px;
       background: #f0f0f0;
       padding: 15px;
       border-radius: 8px;
@@ -23,128 +17,68 @@
   </style>
 </head>
 <body>
-  <h2>📍 Live GPS Tracker</h2>
-
-  <label>Destination Latitude:</label>
-  <input type="number" step="any" id="destLat" placeholder="e.g., 12.9716" />
-
-  <label>Destination Longitude:</label>
-  <input type="number" step="any" id="destLng" placeholder="e.g., 77.5946" />
-
-  <button onclick="startTracking()">Start Tracking</button>
-
+  <h2>🚀 Live Speed & Location</h2>
   <div class="info" id="output">
     <p>Waiting for location...</p>
   </div>
 
   <script>
-    let watchID, prevTimestamp = null, prevLat = null, prevLng = null;
-    let destLat, destLng;
-    const speedBuffer = [];
-    let lastKnownETA = null;
-    const SPEED_THRESHOLD = 2.77; // m/s = 10 km/h
+    let prevLat = null, prevLng = null, prevTime = null;
+    const output = document.getElementById('output');
 
     function toRad(deg) {
       return deg * Math.PI / 180;
     }
 
-    function haversineDistance(lat1, lon1, lat2, lon2) {
+    function getDistance(lat1, lon1, lat2, lon2) {
       const R = 6371e3;
       const φ1 = toRad(lat1), φ2 = toRad(lat2);
       const Δφ = toRad(lat2 - lat1);
       const Δλ = toRad(lon2 - lon1);
-
       const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
                 Math.cos(φ1) * Math.cos(φ2) *
                 Math.sin(Δλ/2) * Math.sin(Δλ/2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       return R * c; // in meters
     }
 
-    function getAverageSpeed() {
-      if (speedBuffer.length === 0) return 0;
-      const sum = speedBuffer.reduce((a, b) => a + b, 0);
-      return sum / speedBuffer.length;
+    function updateLocation() {
+      navigator.geolocation.getCurrentPosition(pos => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const now = Date.now();
+
+        let speedText = "Calculating...";
+        if (prevLat !== null && prevTime !== null) {
+          const dist = getDistance(lat, lng, prevLat, prevLng); // meters
+          const timeDiff = (now - prevTime) / 1000; // seconds
+          if (timeDiff > 0) {
+            const speedMps = dist / timeDiff;
+            const speedKmph = speedMps * 3.6;
+            speedText = `${speedKmph.toFixed(2)} km/h`;
+          }
+        }
+
+        output.innerHTML = `
+          <p><strong>Latitude:</strong> ${lat.toFixed(6)}</p>
+          <p><strong>Longitude:</strong> ${lng.toFixed(6)}</p>
+          <p><strong>Speed:</strong> ${speedText}</p>
+        `;
+
+        prevLat = lat;
+        prevLng = lng;
+        prevTime = now;
+      }, err => {
+        output.innerHTML = `<p>Error: ${err.message}</p>`;
+      }, {
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 0
+      });
     }
 
-    function formatTime(seconds) {
-      const mins = Math.floor(seconds / 60);
-      const secs = Math.floor(seconds % 60);
-      return `${mins}m ${secs}s`;
-    }
-
-    function startTracking() {
-      destLat = parseFloat(document.getElementById('destLat').value);
-      destLng = parseFloat(document.getElementById('destLng').value);
-
-      if (isNaN(destLat) || isNaN(destLng)) {
-        alert("Please enter valid destination coordinates.");
-        return;
-      }
-
-      if ("geolocation" in navigator) {
-        watchID = navigator.geolocation.watchPosition(successCallback, errorCallback, {
-          enableHighAccuracy: true,
-          maximumAge: 1000,
-          timeout: 5000
-        });
-        document.getElementById('output').innerHTML = "<p>Tracking started...</p>";
-      } else {
-        alert("Geolocation is not supported by your browser.");
-      }
-    }
-
-    function successCallback(position) {
-      const lat = position.coords.latitude;
-      const lng = position.coords.longitude;
-      const timestamp = position.timestamp;
-
-      let speed = position.coords.speed;
-
-      // fallback speed calc if null
-      if ((speed === null || speed < 0) && prevTimestamp && prevLat !== null) {
-        const dist = haversineDistance(lat, lng, prevLat, prevLng);
-        const time = (timestamp - prevTimestamp) / 1000;
-        if (time > 0) speed = dist / time;
-      }
-
-      if (speed && speed > 0) {
-        speedBuffer.push(speed);
-        if (speedBuffer.length > 5) speedBuffer.shift();
-      }
-
-      const avgSpeed = getAverageSpeed();
-      const distanceToDestMeters = haversineDistance(lat, lng, destLat, destLng);
-      const distanceToDestKM = distanceToDestMeters / 1000;
-
-      let etaText = "Calculating...";
-      if (avgSpeed >= SPEED_THRESHOLD) {
-        const timeLeft = distanceToDestMeters / avgSpeed;
-        lastKnownETA = formatTime(timeLeft);
-        etaText = lastKnownETA;
-      } else if (lastKnownETA) {
-        etaText = lastKnownETA + " (based on last good speed)";
-      }
-
-      const outputDiv = document.getElementById('output');
-      outputDiv.innerHTML = `
-        <h3>Live Location Data</h3>
-        <p><strong>Latitude:</strong> ${lat.toFixed(6)}</p>
-        <p><strong>Longitude:</strong> ${lng.toFixed(6)}</p>
-        <p><strong>Average Speed:</strong> ${avgSpeed > 0 ? (avgSpeed * 3.6).toFixed(2) + ' km/h' : 'Stopped / No data'}</p>
-        <p><strong>Distance to Destination:</strong> ${distanceToDestKM.toFixed(2)} km</p>
-        <p><strong>Estimated Time Left:</strong> ${etaText}</p>
-      `;
-
-      prevTimestamp = timestamp;
-      prevLat = lat;
-      prevLng = lng;
-    }
-
-    function errorCallback(error) {
-      document.getElementById('output').innerHTML = `<p>Error: ${error.message}</p>`;
-    }
+    // Update every 0.5 sec
+    setInterval(updateLocation, 500);
   </script>
 </body>
 </html>
