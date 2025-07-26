@@ -1,1248 +1,150 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dynamic Train Search</title>
-
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
-
-    <style>
-        /* --- CSS Variables for Theming --- */
-        :root {
-            --primary-color: #4CAF50; /* A fresh green */
-            --primary-color-dark: #388E3C;
-            --primary-color-light: #81C784;
-            --accent-color: #FFC107; /* Amber */
-            --background-color: #e8f5e9; /* Light green background */
-            --surface-color: #ffffff;
-            --text-color-primary: #212121;
-            --text-color-secondary: #757575;
-            --border-color: #e0e0e0;
-            --hover-color: #f5f5f5;
-            --shadow-light: 0 2px 5px rgba(0,0,0,0.1);
-            --shadow-medium: 0 5px 15px rgba(0,0,0,0.15);
-            --status-available: #28a745; /* Bootstrap success green */
-            --status-rac: #ffc107; /* Bootstrap warning yellow */
-            --status-wl: #007bff; /* Bootstrap info blue */
-            --status-other: #dc3545; /* Bootstrap danger red */
-            --animation-speed: 0.3s;
-        }
-
-        /* --- Base Styles --- */
-        body {
-            font-family: 'Roboto', sans-serif;
-            background-color: var(--background-color);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-            padding: 20px;
-            box-sizing: border-box;
-            color: var(--text-color-primary);
-            overflow-x: hidden; /* Prevent horizontal scroll from animations */
-        }
-
-        /* --- Card Styles --- */
-        .card {
-            background-color: var(--surface-color);
-            border-radius: 12px; /* Softer corners */
-            box-shadow: var(--shadow-medium);
-            padding: 30px; /* More padding */
-            width: 100%;
-            max-width: 850px; /* Slightly wider */
-            margin-bottom: 30px;
-            box-sizing: border-box;
-            transition: transform var(--animation-speed) ease-out;
-        }
-
-        .card:hover {
-            transform: translateY(-5px); /* Lift on hover */
-        }
-
-        /* --- Headings --- */
-        h1, h2 {
-            font-weight: 500; /* Medium weight for headings */
-            color: var(--text-color-primary);
-            margin-top: 0;
-            display: flex;
-            align-items: center;
-            text-transform: uppercase; /* All caps for headings */
-        }
-
-        h1 {
-            font-size: 2.5em; /* Larger main heading */
-            margin-bottom: 30px;
-            text-align: center;
-            width: 100%;
-            justify-content: center;
-        }
-
-        h2 {
-            font-size: 1.8em;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid var(--primary-color-light); /* Stronger border */
-        }
-
-        h1 .material-icons {
-            margin-right: 15px;
-            color: var(--primary-color);
-            font-size: 1.3em;
-        }
-
-        h2 .material-icons {
-            margin-right: 10px;
-            color: var(--primary-color);
-            font-size: 1.1em;
-        }
-
-        /* --- Input Grid Layout --- */
-        .input-grid {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 25px; /* Increased gap */
-            margin-bottom: 30px;
-        }
-
-        @media (min-width: 768px) { /* Tablet and desktop */
-            .input-grid {
-                grid-template-columns: 2fr 1fr; /* From/To and Date side-by-side */
-            }
-        }
-        @media (min-width: 992px) { /* Larger desktops */
-            .input-grid {
-                grid-template-columns: 3fr 1fr; /* More space for station inputs */
-            }
-        }
-
-        .station-swap-container {
-            display: flex;
-            align-items: flex-end; /* Align inputs and button at the bottom */
-            gap: 12px; /* Slightly larger gap */
-        }
-
-        .input-wrapper {
-            position: relative;
-            flex: 1;
-        }
-
-        /* --- Custom Text Input Styles (replacing MDC) --- */
-        .custom-text-field {
-            position: relative;
-            width: 100%;
-            border: 2px solid var(--border-color);
-            border-radius: 8px;
-            background-color: var(--surface-color);
-            transition: border-color var(--animation-speed) ease, box-shadow var(--animation-speed) ease;
-            box-sizing: border-box;
-        }
-
-        .custom-text-field:focus-within {
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px var(--primary-color-light);
-        }
-
-        .custom-text-field input {
-            width: calc(100% - 32px); /* Account for padding */
-            padding: 16px;
-            font-size: 1.1em;
-            border: none;
-            background: transparent;
-            outline: none;
-            color: var(--text-color-primary);
-            padding-top: 24px; /* Space for floating label */
-        }
-
-        .custom-text-field input::placeholder {
-            color: transparent; /* Hide native placeholder for floating label */
-        }
-
-        .custom-text-field label {
-            position: absolute;
-            left: 16px;
-            top: 18px;
-            color: var(--text-color-secondary);
-            pointer-events: none;
-            transition: all var(--animation-speed) ease;
-            font-size: 1.1em;
-        }
-
-        /* Floating label effect */
-        .custom-text-field input:focus + label,
-        .custom-text-field input:not(:placeholder-shown) + label {
-            top: 6px;
-            font-size: 0.85em;
-            color: var(--primary-color);
-            background-color: var(--surface-color);
-            padding: 0 6px;
-            left: 10px;
-            transform: translateX(0) scale(1); /* Ensure no scale issues */
-            /* Add a small negative margin to ensure background fills the gap cleanly */
-            margin-left: -6px;
-        }
-
-        .custom-text-field input[type="date"] {
-            appearance: none; /* Remove default date picker icon */
-            padding-right: 40px; /* Space for custom icon */
-        }
-
-        .custom-text-field .input-icon {
-            position: absolute;
-            right: 12px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-color-secondary);
-            pointer-events: none; /* Make icon unclickable */
-        }
-
-        /* --- Suggestions List --- */
-        .suggestions-list {
-            position: absolute;
-            top: calc(100% + 5px); /* Below the input field */
-            left: 0;
-            right: 0;
-            background-color: var(--surface-color);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            box-shadow: var(--shadow-light);
-            max-height: 280px; /* Taller list */
-            overflow-y: auto;
-            z-index: 1000;
-            opacity: 0;
-            visibility: hidden;
-            transform: translateY(10px);
-            transition: opacity var(--animation-speed) ease, transform var(--animation-speed) ease, visibility var(--animation-speed) ease;
-        }
-
-        .suggestions-list.active {
-            opacity: 1;
-            visibility: visible;
-            transform: translateY(0);
-        }
-
-        .suggestions-list .suggestion-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 18px;
-            cursor: pointer;
-            transition: background-color 0.2s ease, color 0.2s ease;
-            border-bottom: 1px solid var(--border-color);
-        }
-        .suggestions-list .suggestion-item:last-child {
-            border-bottom: none;
-        }
-
-        .suggestions-list .suggestion-item:hover,
-        .suggestions-list .suggestion-item.selected { /* For keyboard navigation highlight */
-            background-color: var(--primary-color-light);
-            color: var(--surface-color);
-        }
-        .suggestions-list .suggestion-item:hover .station-code,
-        .suggestions-list .suggestion-item.selected .station-code {
-            color: var(--surface-color);
-        }
-
-
-        .suggestions-list .station-name {
-            font-weight: 500;
-            flex-grow: 1;
-            margin-right: 10px;
-        }
-
-        .suggestions-list .station-code {
-            font-size: 0.9em;
-            color: var(--text-color-secondary);
-            background-color: var(--background-color);
-            padding: 4px 8px;
-            border-radius: 5px;
-            transition: background-color 0.2s ease, color 0.2s ease;
-        }
-
-        /* --- Buttons (Custom) --- */
-        .button-container {
-            display: flex;
-            justify-content: flex-end;
-            margin-top: 25px;
-        }
-
-        .custom-button {
-            background-color: var(--primary-color);
-            color: var(--surface-color);
-            border: none;
-            border-radius: 8px;
-            padding: 14px 28px;
-            font-size: 1.1em;
-            font-weight: 500;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
-            overflow: hidden; /* For ripple effect */
-            position: relative;
-            outline: none; /* Remove default outline */
-        }
-
-        .custom-button:hover {
-            background-color: var(--primary-color-dark);
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-light);
-        }
-
-        .custom-button:active {
-            transform: translateY(0);
-            box-shadow: none;
-        }
-
-        .custom-button .material-icons {
-            font-size: 1.2em;
-        }
-
-        /* --- Custom Ripple Effect --- */
-        .custom-button .ripple {
-            position: absolute;
-            border-radius: 50%;
-            opacity: 0;
-            background-color: rgba(255, 255, 255, 0.7); /* White ripple */
-            animation: ripple-animation 0.6s linear forwards;
-            pointer-events: none; /* Ensure clicks pass through */
-            transform: scale(0);
-        }
-
-        @keyframes ripple-animation {
-            from {
-                transform: scale(0);
-                opacity: 0.7;
-            }
-            to {
-                transform: scale(4); /* Scale up significantly */
-                opacity: 0;
-            }
-        }
-
-        /* --- Swap Button --- */
-        .swap-button {
-            background: none;
-            border: none;
-            color: var(--primary-color);
-            cursor: pointer;
-            font-size: 2.5em; /* Larger icon */
-            padding: 5px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: color 0.2s ease, background-color 0.2s ease, transform 0.3s ease-in-out;
-            outline: none;
-            flex-shrink: 0; /* Prevent shrinking */
-            margin-bottom: 5px; /* Adjust alignment with input text */
-        }
-
-        .swap-button:hover {
-            background-color: var(--primary-color-light);
-            color: var(--surface-color);
-        }
-
-        .swap-button:active {
-            transform: scale(0.9);
-        }
-
-        .swap-icon {
-            transition: transform 0.3s ease-in-out;
-        }
-
-        .swap-icon.swapping {
-            transform: rotate(180deg);
-        }
-
-        /* --- Results Container & Messages --- */
-        .results-container {
-            width: 100%;
-            max-width: 850px;
-        }
-
-        .message-box {
-            text-align: center;
-            font-size: 1.2em;
-            padding: 40px 20px;
-            background-color: var(--surface-color);
-            border-radius: 12px;
-            box-shadow: var(--shadow-light);
-            margin-top: 20px;
-            color: var(--text-color-secondary);
-            animation: fadeIn 0.5s ease-out;
-        }
-        .message-box.error {
-            color: var(--status-other);
-            border: 1px solid var(--status-other);
-            background-color: #ffebee; /* Light red */
-        }
-
-        /* --- Train Card --- */
-        .train-card {
-            background-color: var(--surface-color);
-            border-radius: 12px;
-            box-shadow: var(--shadow-light);
-            margin-bottom: 25px;
-            padding: 20px;
-            border-left: 8px solid var(--primary-color); /* Thicker border */
-            transition: transform 0.3s ease-out, box-shadow 0.3s ease;
-            animation: slideInFromLeft 0.5s ease-out forwards;
-            opacity: 0; /* Start hidden for animation */
-        }
-
-        .train-card:hover {
-            transform: translateY(-7px);
-            box-shadow: var(--shadow-medium);
-        }
-        
-        /* Animation delay for each card */
-        .train-card:nth-child(1) { animation-delay: 0.1s; }
-        .train-card:nth-child(2) { animation-delay: 0.2s; }
-        .train-card:nth-child(3) { animation-delay: 0.3s; }
-        .train-card:nth-child(4) { animation-delay: 0.4s; }
-        .train-card:nth-child(5) { animation-delay: 0.5s; }
-        /* ... add more as needed or use JS to set animation-delay */
-
-        @keyframes slideInFromLeft {
-            from {
-                transform: translateX(-50px);
-                opacity: 0;
-            }
-            to {
-                transform: translateX(0);
-                opacity: 1;
-            }
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-
-        .train-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            flex-wrap: wrap;
-        }
-
-        .train-header .name {
-            font-size: 1.5em; /* Larger train name */
-            font-weight: 700;
-            color: var(--primary-color-dark);
-        }
-
-        .train-header .number {
-            font-size: 1em;
-            color: var(--text-color-secondary);
-            background-color: var(--background-color);
-            padding: 4px 10px;
-            border-radius: 6px;
-            font-weight: 500;
-        }
-
-        .train-timing {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 1.1em;
-            margin-bottom: 15px;
-            padding-bottom: 15px;
-            border-bottom: 1px dashed var(--border-color);
-        }
-
-        .train-timing .time-station {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .train-timing .time {
-            font-weight: 700;
-            font-size: 1.4em;
-            color: var(--text-color-primary);
-        }
-
-        .train-timing .station {
-            font-size: 0.9em;
-            color: var(--text-color-secondary);
-            margin-top: 4px;
-        }
-
-        .train-timing .duration {
-            text-align: center;
-            color: var(--text-color-secondary);
-            font-size: 0.95em;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-width: 90px;
-        }
-
-        .train-timing .duration .material-icons {
-            font-size: 22px;
-            vertical-align: middle;
-            color: var(--primary-color);
-            margin-bottom: 5px;
-        }
-
-        .class-availability {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); /* Slightly larger boxes */
-            gap: 12px; /* Increased gap */
-            padding-top: 15px;
-        }
-
-        .class-box {
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 12px;
-            text-align: center;
-            background-color: var(--hover-color); /* Light background for boxes */
-            transition: background-color 0.2s ease, transform 0.2s ease;
-        }
-
-        .class-box:hover {
-            background-color: #e0f2f1; /* A light teal for hover */
-            transform: translateY(-3px);
-        }
-
-        .class-box .status {
-            font-weight: 700;
-            margin-bottom: 6px;
-            font-size: 1.1em;
-            text-transform: uppercase;
-        }
-
-        .class-box .fare {
-            font-size: 1em;
-            color: var(--text-color-primary);
-            font-weight: 500;
-        }
-
-        /* Status colors */
-        .status-available { color: var(--status-available); }
-        .status-rac { color: var(--status-rac); }
-        .status-wl { color: var(--status-wl); }
-        .status-other { color: var(--status-other); }
-
-        /* --- Loader --- */
-        .loader {
-            border: 6px solid #f3f3f3;
-            border-top: 6px solid var(--primary-color);
-            border-radius: 50%;
-            width: 60px; /* Larger loader */
-            height: 60px;
-            animation: spin 1s linear infinite;
-            margin: 50px auto;
-            box-shadow: var(--shadow-light);
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        /* --- Disclaimer --- */
-        .disclaimer {
-            max-width: 850px;
-            text-align: center;
-            font-size: 0.9em;
-            color: var(--text-color-secondary);
-            margin-top: 40px;
-            padding: 25px;
-            background-color: var(--surface-color);
-            border-radius: 12px;
-            box-shadow: var(--shadow-light);
-            line-height: 1.7;
-        }
-
-        .disclaimer strong {
-            color: var(--text-color-primary);
-        }
-
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Live GPS Tracker</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+    input, button {
+      padding: 8px;
+      margin: 5px 0;
+      width: 100%;
+    }
+    .info {
+      margin-top: 20px;
+      background: #f0f0f0;
+      padding: 15px;
+      border-radius: 8px;
+    }
+  </style>
 </head>
 <body>
-
-    <div class="card" role="search">
-        <h1><i class="material-icons" aria-hidden="true">train</i>FIND YOUR TRAIN</h1>
-        <div class="input-grid">
-            <div class="station-swap-container">
-                <div class="input-wrapper">
-                    <div class="custom-text-field">
-                        <input type="text" id="from-station-input" autocomplete="off" placeholder=" ">
-                        <label for="from-station-input">FROM STATION</label>
-                    </div>
-                    <div class="suggestions-list" id="from-suggestions" role="listbox" aria-live="polite"></div>
-                </div>
-
-                <button class="swap-button" id="swap-stations-button" aria-label="Swap from and to stations">
-                    <i class="material-icons swap-icon" aria-hidden="true">swap_horiz</i>
-                </button>
-
-                <div class="input-wrapper">
-                    <div class="custom-text-field">
-                        <input type="text" id="to-station-input" autocomplete="off" placeholder=" ">
-                        <label for="to-station-input">TO STATION</label>
-                    </div>
-                    <div class="suggestions-list" id="to-suggestions" role="listbox" aria-live="polite"></div>
-                </div>
-            </div>
-
-            <div class="input-wrapper">
-                 <div class="custom-text-field">
-                    <input type="date" id="date-input" placeholder=" ">
-                    <label for="date-input">DATE OF JOURNEY</label>
-                    <i class="material-icons input-icon" aria-hidden="true">event</i>
-                </div>
-            </div>
-        </div>
-        <div class="button-container">
-            <button class="custom-button" id="search-button">
-                <i class="material-icons" aria-hidden="true">search</i>
-                <span>SEARCH TRAINS</span>
-            </button>
-        </div>
-    </div>
-    
-    <div id="results-container" class="results-container" aria-live="polite" aria-atomic="true"></div>
-
-    <div class="disclaimer">
-        <p>
-            <strong>Disclaimer:</strong>
-            All train data displayed is sourced from ConfirmTkt (Le Travenues Technology Limited). Some train details may occasionally appear as "Not Available" due to limitations of the third-party provider. This does not necessarily indicate that seats are unavailable.
-        </p>
-        <p>
-            Please note that access to this data may require an account and sign-in. The train information shown may not always be up to date or entirely accurate. Passengers are strongly advised to verify all details through official railway stations or trusted sources before making any travel decisions.
-        </p>
-        <p>
-            We do not take responsibility for any losses or inconvenience caused due to reliance on the information provided on this platform.
-        </p>
-    </div>
-
-    <script>
-        /**
-         * @module Utils
-         * Contains utility functions for common tasks.
-         */
-        const Utils = (() => {
-            /**
-             * Converts a string to Title Case.
-             * @param {string} str - The input string.
-             * @returns {string} The string in Title Case.
-             */
-            const toTitleCase = (str) => {
-                if (!str) return '';
-                return str.toLowerCase().split(' ').map(word => {
-                    return word.charAt(0).toUpperCase() + word.slice(1);
-                }).join(' ');
-            };
-
-            /**
-             * Debounces a function call.
-             * @param {Function} func - The function to debounce.
-             * @param {number} delay - The debounce delay in milliseconds.
-             * @returns {Function} The debounced function.
-             */
-            const debounce = (func, delay) => {
-                let timeout;
-                return function(...args) {
-                    const context = this;
-                    clearTimeout(timeout);
-                    timeout = setTimeout(() => func.apply(context, args), delay);
-                };
-            };
-
-            /**
-             * Adds a custom ripple effect to a button.
-             * @param {MouseEvent} event - The click event.
-             * @param {HTMLElement} button - The button element.
-             */
-            const addRippleEffect = (event, button) => {
-                const ripple = document.createElement('span');
-                const diameter = Math.max(button.clientWidth, button.clientHeight);
-                const radius = diameter / 2;
-
-                ripple.style.width = ripple.style.height = `${diameter}px`;
-                ripple.style.left = `${event.clientX - (button.getBoundingClientRect().left + radius)}px`;
-                ripple.style.top = `${event.clientY - (button.getBoundingClientRect().top + radius)}px`;
-                ripple.classList.add('ripple');
-
-                // Remove any existing ripples to prevent multiple animations
-                const existingRipple = button.querySelector('.ripple');
-                if (existingRipple) {
-                    existingRipple.remove();
-                }
-                button.appendChild(ripple);
-
-                // Clean up the ripple element after animation
-                ripple.addEventListener('animationend', () => {
-                    ripple.remove();
-                });
-            };
-
-
-            return {
-                toTitleCase,
-                debounce,
-                addRippleEffect
-            };
-        })();
-
-        /**
-         * @module APIService
-         * Handles all external API interactions.
-         */
-        const APIService = (() => {
-            const STATION_BASE_URL = 'https://cttrainsapi.confirmtkt.com/api/v2/trains/stations/auto-suggestion';
-            const TRAIN_SEARCH_BASE_URL = 'https://cttrainsapi.confirmtkt.com/api/v1/trains/search';
-
-            let prefetchedData = null;
-            let lastPrefetchKey = '';
-            let isPrefetching = false;
-
-            /**
-             * Formats a date string from YYYY-MM-DD to DD-MM-YYYY.
-             * @param {string} dateString - Date in YYYY-MM-DD format.
-             * @returns {string} Date in DD-MM-YYYY format.
-             */
-            const _formatDateForAPI = (dateString) => {
-                const [year, month, day] = dateString.split('-');
-                return `${day}-${month}-${year}`;
-            };
-
-            /**
-             * Constructs the API URL for train search.
-             * @param {string} fromCode - Source station code.
-             * @param {string} toCode - Destination station code.
-             * @param {string} date - Date of journey in YYYY-MM-DD format.
-             * @returns {string} The constructed API URL.
-             */
-            const _buildTrainSearchUrl = (fromCode, toCode, date) => {
-                const formattedDate = _formatDateForAPI(date);
-                return `${TRAIN_SEARCH_BASE_URL}?sourceStationCode=${fromCode}&destinationStationCode=${toCode}&dateOfJourney=${formattedDate}&addAvailabilityCache=true&excludeMultiTicketAlternates=false&excludeBoostAlternates=false&sortBy=DEFAULT&enableNearby=true&enableTG=true&tGPlan=CTG-15&showTGPrediction=false&tgColor=DEFAULT&showPredictionGlobal=true`;
-            };
-
-            /**
-             * Fetches station suggestions based on a search term.
-             * @param {string} searchTerm - The user's input.
-             * @returns {Promise<Array<Object>>} A promise that resolves to an array of station objects.
-             */
-            const fetchStationSuggestions = async (searchTerm) => {
-                if (searchTerm.length < 1) return [];
-                const apiUrl = `${STATION_BASE_URL}?searchString=${encodeURIComponent(searchTerm)}&sourceStnCode=&popularStnListLimit=15&preferredStnListLimit=6&channel=mwebd&language=EN`;
-                try {
-                    const response = await fetch(apiUrl);
-                    if (!response.ok) {
-                        throw new Error(`Network response for stations was not ok: ${response.statusText}`);
-                    }
-                    const data = await response.json();
-                    return data?.data?.stationList || [];
-                } catch (error) {
-                    console.error('Error fetching station suggestions:', error);
-                    return [];
-                }
-            };
-
-            /**
-             * Prefetches train search data to improve perceived performance.
-             * Only one prefetch request can be active at a time for a given route/date.
-             * @param {string} fromCode - Source station code.
-             * @param {string} toCode - Destination station code.
-             * @param {string} date - Date of journey in YYYY-MM-DD format.
-             * @returns {Promise<void>}
-             */
-            const prefetchTrainSearch = async (fromCode, toCode, date) => {
-                if (!fromCode || !toCode || !date) return;
-                const prefetchKey = `${fromCode}-${toCode}-${date}`;
-                if (lastPrefetchKey === prefetchKey || isPrefetching) {
-                    // console.log(`Skipping prefetch: Already prefetching or data for ${prefetchKey} is current.`);
-                    return;
-                }
-
-                isPrefetching = true;
-                lastPrefetchKey = prefetchKey;
-                prefetchedData = null;
-                // console.log(`Prefetching trains for: ${prefetchKey}`);
-
-                try {
-                    const searchApiUrl = _buildTrainSearchUrl(fromCode, toCode, date);
-                    const response = await fetch(searchApiUrl);
-                    if (!response.ok) {
-                        throw new Error(`Prefetch network response was not ok: ${response.statusText}`);
-                    }
-                    const result = await response.json();
-                    if (lastPrefetchKey === prefetchKey) { // Ensure the prefetch is still relevant
-                        prefetchedData = result.data;
-                        // console.log('Prefetch successful!');
-                    }
-                } catch (error) {
-                    console.error('Prefetch failed:', error);
-                    if (lastPrefetchKey === prefetchKey) {
-                        lastPrefetchKey = ''; // Clear last key if prefetch failed
-                    }
-                } finally {
-                    isPrefetching = false;
-                }
-            };
-
-            /**
-             * Performs a train search, using prefetched data if available.
-             * @param {string} fromCode - Source station code.
-             * @param {string} toCode - Destination station code.
-             * @param {string} date - Date of journey in YYYY-MM-DD format.
-             * @returns {Promise<Object|null>} A promise that resolves to the train data or null on error.
-             */
-            const searchTrains = async (fromCode, toCode, date) => {
-                const searchKey = `${fromCode}-${toCode}-${date}`;
-                if (prefetchedData && lastPrefetchKey === searchKey) {
-                    // console.log('Using prefetched data for search!');
-                    const data = prefetchedData;
-                    prefetchedData = null; // Clear prefetched data after use
-                    lastPrefetchKey = ''; // Reset prefetch key
-                    return data;
-                }
-
-                // console.log('Fetching live data for search...');
-                try {
-                    const searchApiUrl = _buildTrainSearchUrl(fromCode, toCode, date);
-                    const response = await fetch(searchApiUrl);
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! Status: ${response.status}`);
-                    }
-                    const result = await response.json();
-                    return result.data;
-                } catch (error) {
-                    console.error('Error fetching train list:', error);
-                    return null;
-                }
-            };
-
-            return {
-                fetchStationSuggestions,
-                prefetchTrainSearch,
-                searchTrains
-            };
-        })();
-
-        /**
-         * @module UIController
-         * Manages all UI interactions and rendering.
-         */
-        const UIController = (() => {
-            // DOM Elements
-            const fromInput = document.getElementById('from-station-input');
-            const toInput = document.getElementById('to-station-input');
-            const dateInput = document.getElementById('date-input');
-            const fromSuggestions = document.getElementById('from-suggestions');
-            const toSuggestions = document.getElementById('to-suggestions');
-            const searchButton = document.getElementById('search-button');
-            const swapButton = document.getElementById('swap-stations-button');
-            const resultsContainer = document.getElementById('results-container');
-            const swapIcon = swapButton.querySelector('.swap-icon');
-
-            let currentFocusedSuggestion = -1; // For keyboard navigation
-
-            /**
-             * Sets up the date input with min date and initial value.
-             */
-            const _setupDateInput = () => {
-                const today = new Date().toISOString().split("T")[0];
-                dateInput.min = today;
-                dateInput.value = today;
-                // Force label to float for date input if value is set programmatically
-                if (dateInput.value) {
-                    dateInput.closest('.custom-text-field').classList.add('has-value');
-                }
-            };
-
-            /**
-             * Adds all necessary event listeners.
-             */
-            const _addEventListeners = () => {
-                fromInput.addEventListener('input', Utils.debounce((e) => _handleStationInput(e.target.value, fromSuggestions, fromInput), 300));
-                toInput.addEventListener('input', Utils.debounce((e) => _handleStationInput(e.target.value, toSuggestions, toInput), 300));
-                
-                searchButton.addEventListener('click', (e) => {
-                    Utils.addRippleEffect(e, searchButton); // Add ripple
-                    _handleSearch();
-                });
-                
-                swapButton.addEventListener('click', (e) => {
-                    Utils.addRippleEffect(e, swapButton); // Add ripple
-                    _handleSwapStations();
-                });
-
-                // Add ripple to swap button directly as it's an icon button
-                swapButton.addEventListener('mousedown', (e) => Utils.addRippleEffect(e, swapButton));
-
-                // Prefetching on hover for search button
-                searchButton.addEventListener('mouseover', () => APIService.prefetchTrainSearch(
-                    fromInput.dataset.selectedCode,
-                    toInput.dataset.selectedCode,
-                    dateInput.value
-                ));
-
-                // Prefetching on hover for suggestion lists (for the other input)
-                fromSuggestions.addEventListener('mouseover', (e) => {
-                    const hoveredLi = e.target.closest('.suggestion-item');
-                    if (hoveredLi && hoveredLi.dataset.stationCode) {
-                        APIService.prefetchTrainSearch(
-                            hoveredLi.dataset.stationCode,
-                            toInput.dataset.selectedCode,
-                            dateInput.value
-                        );
-                    }
-                });
-
-                toSuggestions.addEventListener('mouseover', (e) => {
-                    const hoveredLi = e.target.closest('.suggestion-item');
-                    if (hoveredLi && hoveredLi.dataset.stationCode) {
-                        APIService.prefetchTrainSearch(
-                            fromInput.dataset.selectedCode,
-                            hoveredLi.dataset.stationCode,
-                            dateInput.value
-                        );
-                    }
-                });
-
-                // Hide suggestions when clicking outside
-                document.addEventListener('click', (e) => {
-                    if (!fromInput.closest('.input-wrapper').contains(e.target)) {
-                        _hideSuggestions(fromSuggestions);
-                    }
-                    if (!toInput.closest('.input-wrapper').contains(e.target)) {
-                        _hideSuggestions(toSuggestions);
-                    }
-                });
-
-                // Keyboard navigation for suggestions
-                fromInput.addEventListener('keydown', (e) => _handleSuggestionKeydown(e, fromSuggestions, fromInput));
-                toInput.addEventListener('keydown', (e) => _handleSuggestionKeydown(e, toSuggestions, toInput));
-
-                // Input label focus/blur handling
-                document.querySelectorAll('.custom-text-field input').forEach(input => {
-                    input.addEventListener('focus', () => {
-                        input.closest('.custom-text-field').classList.add('has-focus');
-                    });
-                    input.addEventListener('blur', () => {
-                        input.closest('.custom-text-field').classList.remove('has-focus');
-                        // Ensure label floats if there's a value even after blur
-                        if (input.value) {
-                            input.closest('.custom-text-field').classList.add('has-value');
-                        } else {
-                            input.closest('.custom-text-field').classList.remove('has-value');
-                        }
-                    });
-                    // Initial check for value on load
-                    if (input.value) {
-                        input.closest('.custom-text-field').classList.add('has-value');
-                    }
-                });
-            };
-
-            /**
-             * Handles keyboard navigation for suggestion lists.
-             * @param {KeyboardEvent} e - The keyboard event.
-             * @param {HTMLElement} suggestionsElement - The suggestions list container.
-             * @param {HTMLInputElement} inputElement - The associated input field.
-             */
-            const _handleSuggestionKeydown = (e, suggestionsElement, inputElement) => {
-                const items = Array.from(suggestionsElement.children);
-                if (items.length === 0) return;
-
-                if (e.key === 'ArrowDown') {
-                    e.preventDefault();
-                    currentFocusedSuggestion = (currentFocusedSuggestion + 1) % items.length;
-                    _highlightSuggestion(items, currentFocusedSuggestion);
-                } else if (e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    currentFocusedSuggestion = (currentFocusedSuggestion - 1 + items.length) % items.length;
-                    _highlightSuggestion(items, currentFocusedSuggestion);
-                } else if (e.key === 'Enter') {
-                    e.preventDefault();
-                    if (currentFocusedSuggestion !== -1) {
-                        items[currentFocusedSuggestion].click();
-                    } else {
-                        // If no suggestion is highlighted, trigger search on Enter
-                        _handleSearch();
-                    }
-                } else if (e.key === 'Escape') {
-                    _hideSuggestions(suggestionsElement);
-                    currentFocusedSuggestion = -1;
-                }
-            };
-
-            /**
-             * Highlights a suggestion item for keyboard navigation.
-             * @param {Array<HTMLElement>} items - The list of suggestion items.
-             * @param {number} index - The index of the item to highlight.
-             */
-            const _highlightSuggestion = (items, index) => {
-                items.forEach((item, i) => {
-                    if (i === index) {
-                        item.classList.add('selected');
-                        item.focus(); // Set focus for accessibility
-                    } else {
-                        item.classList.remove('selected');
-                    }
-                });
-            };
-
-
-            /**
-             * Handles input events for station search fields.
-             * @param {string} searchTerm - The current value of the input.
-             * @param {HTMLElement} suggestionsElement - The suggestions list container.
-             * @param {HTMLInputElement} inputElement - The actual input field.
-             */
-            const _handleStationInput = async (searchTerm, suggestionsElement, inputElement) => {
-                if (searchTerm.length < 1) {
-                    _hideSuggestions(suggestionsElement);
-                    return;
-                }
-                const stations = await APIService.fetchStationSuggestions(searchTerm);
-                _displaySuggestions(stations, suggestionsElement, inputElement);
-            };
-
-            /**
-             * Displays station suggestions in the provided suggestions list element.
-             * @param {Array<Object>} stations - An array of station objects.
-             * @param {HTMLElement} suggestionsElement - The suggestions list container.
-             * @param {HTMLInputElement} inputElement - The actual input field.
-             */
-            const _displaySuggestions = (stations, suggestionsElement, inputElement) => {
-                suggestionsElement.innerHTML = '';
-                currentFocusedSuggestion = -1; // Reset focus on new suggestions
-
-                if (!stations.length) {
-                    _hideSuggestions(suggestionsElement);
-                    return;
-                }
-
-                stations.forEach(station => {
-                    const li = document.createElement('li');
-                    li.className = 'suggestion-item';
-                    li.dataset.stationCode = station.stationCode;
-                    li.setAttribute('role', 'option');
-                    li.setAttribute('tabindex', '-1'); // Make list items focusable via JS, not tab
-                    
-                    const formattedStationName = Utils.toTitleCase(station.stationName);
-                    li.innerHTML = `
-                        <span class="station-name">${formattedStationName}</span>
-                        <span class="station-code">${station.stationCode}</span>
-                    `;
-
-                    li.addEventListener('click', () => {
-                        inputElement.value = `${formattedStationName} (${station.stationCode})`;
-                        inputElement.dataset.selectedCode = station.stationCode;
-                        inputElement.closest('.custom-text-field').classList.add('has-value'); // Ensure label floats
-                        _hideSuggestions(suggestionsElement);
-                    });
-                    suggestionsElement.appendChild(li);
-                });
-                _showSuggestions(suggestionsElement);
-            };
-
-            /**
-             * Shows the suggestions list with an animation.
-             * @param {HTMLElement} suggestionsElement - The suggestions list container.
-             */
-            const _showSuggestions = (suggestionsElement) => {
-                suggestionsElement.classList.add('active');
-            };
-
-            /**
-             * Hides the suggestions list with an animation.
-             * @param {HTMLElement} suggestionsElement - The suggestions list container.
-             */
-            const _hideSuggestions = (suggestionsElement) => {
-                suggestionsElement.classList.remove('active');
-            };
-
-            /**
-             * Handles the swapping of "From" and "To" station inputs.
-             */
-            const _handleSwapStations = () => {
-                swapIcon.classList.add('swapping');
-
-                const fromVal = fromInput.value;
-                const fromCode = fromInput.dataset.selectedCode;
-
-                fromInput.value = toInput.value;
-                fromInput.dataset.selectedCode = toInput.dataset.selectedCode;
-                toInput.value = fromVal;
-                toInput.dataset.selectedCode = fromCode;
-
-                // Ensure labels update their float state
-                fromInput.closest('.custom-text-field').classList.toggle('has-value', !!fromInput.value);
-                toInput.closest('.custom-text-field').classList.toggle('has-value', !!toInput.value);
-
-                // Trigger a new prefetch with the swapped route
-                APIService.prefetchTrainSearch(fromInput.dataset.selectedCode, toInput.dataset.selectedCode, dateInput.value);
-
-                // Reset the animation after it completes
-                setTimeout(() => {
-                    swapIcon.classList.remove('swapping');
-                }, 300);
-            };
-
-            /**
-             * Handles the main train search operation.
-             */
-            const _handleSearch = async () => {
-                const fromStationCode = fromInput.dataset.selectedCode;
-                const toStationCode = toInput.dataset.selectedCode;
-                const journeyDate = dateInput.value;
-
-                if (!fromStationCode || !toStationCode || !journeyDate) {
-                    _displayMessage('PLEASE SELECT VALID "FROM" AND "TO" STATIONS AND A "DATE OF JOURNEY" to search for trains.', 'error');
-                    return;
-                }
-
-                resultsContainer.innerHTML = `<div class="loader" role="status" aria-label="Loading train search results"></div>`;
-                resultsContainer.setAttribute('aria-busy', 'true');
-
-                const trainData = await APIService.searchTrains(fromStationCode, toStationCode, journeyDate);
-
-                if (trainData) {
-                    _displayTrainResults(trainData);
-                } else {
-                    _displayMessage('FAILED TO FETCH TRAIN INFORMATION. Please try again later.', 'error');
-                }
-                resultsContainer.setAttribute('aria-busy', 'false');
-            };
-
-            /**
-             * Displays a message in the results container.
-             * @param {string} message - The message to display.
-             * @param {string} type - Type of message ('info', 'error', etc.).
-             */
-            const _displayMessage = (message, type = 'info') => {
-                resultsContainer.innerHTML = `<div class="message-box ${type}">${message}</div>`;
-            };
-
-            /**
-             * Renders the train search results.
-             * @param {Object} data - The train data object from the API.
-             */
-            const _displayTrainResults = (data) => {
-                resultsContainer.innerHTML = '';
-
-                if (data.errorMessage || (!data.trainList?.length && !data.nearbyTrains?.length)) {
-                    _displayMessage(data.errorMessage ? data.errorMessage.toUpperCase() : 'NO TRAINS FOUND for this route on the selected date. Please try different criteria.', 'info');
-                    return;
-                }
-
-                if (data.trainList?.length) {
-                    const directTrainsHeader = document.createElement('h2');
-                    directTrainsHeader.innerHTML = '<i class="material-icons" aria-hidden="true">directions_railway</i> DIRECT TRAINS';
-                    resultsContainer.appendChild(directTrainsHeader);
-                    data.trainList.forEach(train => resultsContainer.appendChild(_createTrainCard(train)));
-                }
-
-                if (data.nearbyTrains?.length) {
-                    const nearbyTrainsHeader = document.createElement('h2');
-                    nearbyTrainsHeader.innerHTML = '<i class="material-icons" aria-hidden="true">transfer_within_a_station</i> NEARBY TRAINS (WITH CONNECTING STATIONS)';
-                    resultsContainer.appendChild(nearbyTrainsHeader);
-                    data.nearbyTrains.forEach(train => resultsContainer.appendChild(_createTrainCard(train)));
-                }
-            };
-
-            /**
-             * Creates a single train card HTML element.
-             * @param {Object} train - The train data object.
-             * @returns {HTMLElement} The created train card element.
-             */
-            const _createTrainCard = (train) => {
-                const card = document.createElement('div');
-                card.className = 'train-card';
-                card.setAttribute('role', 'article'); // Semantic role
-
-                const durationHours = Math.floor(train.duration / 60);
-                const durationMinutes = train.duration % 60;
-
-                let availabilityHtml = '';
-                if (train.avlClasses && train.availabilityCache) {
-                    for (const cls of train.avlClasses) {
-                        const details = train.availabilityCache[cls];
-                        if (details) {
-                            const status = details.availabilityDisplayName || 'NOT AVAILABLE';
-                            const fare = details.fare ? `₹${details.fare}` : '-';
-                            availabilityHtml += `
-                                <div class="class-box" aria-label="${status} for ${cls} class, Fare: ${fare}">
-                                    <div class="status ${_getStatusClass(status)}">${status.toUpperCase()} (${cls})</div>
-                                    <div class="fare">${fare}</div>
-                                </div>
-                            `;
-                        }
-                    }
-                } else {
-                    availabilityHtml = '<div class="message-box">AVAILABILITY INFORMATION NOT FOUND.</div>';
-                }
-
-                card.innerHTML = `
-                    <div class="train-header">
-                        <span class="name">${Utils.toTitleCase(train.trainName)}</span>
-                        <span class="number">TRAIN NO. ${train.trainNumber}</span>
-                    </div>
-                    <div class="train-timing">
-                        <div class="time-station">
-                            <span class="time">${train.departureTime}</span>
-                            <span class="station">${train.fromStnCode}</span>
-                        </div>
-                        <div class="duration">
-                            <i class="material-icons" aria-hidden="true">timer</i>
-                            <div>${durationHours}h ${durationMinutes}m</div>
-                        </div>
-                        <div class="time-station" style="text-align: right;">
-                            <span class="time">${train.arrivalTime}</span>
-                            <span class="station">${train.toStnCode}</span>
-                        </div>
-                    </div>
-                    <div class="class-availability">
-                        ${availabilityHtml}
-                    </div>
-                `;
-                return card;
-            };
-
-            /**
-             * Determines the CSS class for availability status.
-             * @param {string} status - The availability status string.
-             * @returns {string} The corresponding CSS class.
-             */
-            const _getStatusClass = (status) => {
-                if (!status) return 'status-other';
-                const s = status.toUpperCase();
-                if (s.includes('AVAILABLE') || s.includes('AVL')) return 'status-available';
-                if (s.includes('RAC')) return 'status-rac';
-                if (s.includes('WL') || s.includes('WAITLISTED')) return 'status-wl';
-                return 'status-other';
-            };
-
-            // Public initialization method
-            const init = () => {
-                _setupDateInput();
-                _addEventListeners();
-            };
-
-            return {
-                init
-            };
-        })();
-
-        // Initialize the application once the DOM is fully loaded
-        document.addEventListener('DOMContentLoaded', UIController.init);
-    </script>
+  <h2>📍 Live GPS Tracker</h2>
+
+  <label>Destination Latitude:</label>
+  <input type="number" step="any" id="destLat" placeholder="e.g., 12.9716" />
+
+  <label>Destination Longitude:</label>
+  <input type="number" step="any" id="destLng" placeholder="e.g., 77.5946" />
+
+  <button onclick="startTracking()">Start Tracking</button>
+
+  <div class="info" id="output">
+    <p>Waiting for location...</p>
+  </div>
+
+  <script>
+    let watchID, prevTimestamp = null, prevLat = null, prevLng = null;
+    let destLat, destLng;
+    const speedBuffer = [];
+    let lastKnownETA = null;
+    const SPEED_THRESHOLD = 2.77; // m/s = 10 km/h
+
+    function toRad(deg) {
+      return deg * Math.PI / 180;
+    }
+
+    function haversineDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371e3;
+      const φ1 = toRad(lat1), φ2 = toRad(lat2);
+      const Δφ = toRad(lat2 - lat1);
+      const Δλ = toRad(lon2 - lon1);
+
+      const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                Math.cos(φ1) * Math.cos(φ2) *
+                Math.sin(Δλ/2) * Math.sin(Δλ/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+      return R * c; // in meters
+    }
+
+    function getAverageSpeed() {
+      if (speedBuffer.length === 0) return 0;
+      const sum = speedBuffer.reduce((a, b) => a + b, 0);
+      return sum / speedBuffer.length;
+    }
+
+    function formatTime(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins}m ${secs}s`;
+    }
+
+    function startTracking() {
+      destLat = parseFloat(document.getElementById('destLat').value);
+      destLng = parseFloat(document.getElementById('destLng').value);
+
+      if (isNaN(destLat) || isNaN(destLng)) {
+        alert("Please enter valid destination coordinates.");
+        return;
+      }
+
+      if ("geolocation" in navigator) {
+        watchID = navigator.geolocation.watchPosition(successCallback, errorCallback, {
+          enableHighAccuracy: true,
+          maximumAge: 1000,
+          timeout: 5000
+        });
+        document.getElementById('output').innerHTML = "<p>Tracking started...</p>";
+      } else {
+        alert("Geolocation is not supported by your browser.");
+      }
+    }
+
+    function successCallback(position) {
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+      const timestamp = position.timestamp;
+
+      let speed = position.coords.speed;
+
+      // fallback speed calc if null
+      if ((speed === null || speed < 0) && prevTimestamp && prevLat !== null) {
+        const dist = haversineDistance(lat, lng, prevLat, prevLng);
+        const time = (timestamp - prevTimestamp) / 1000;
+        if (time > 0) speed = dist / time;
+      }
+
+      if (speed && speed > 0) {
+        speedBuffer.push(speed);
+        if (speedBuffer.length > 5) speedBuffer.shift();
+      }
+
+      const avgSpeed = getAverageSpeed();
+      const distanceToDestMeters = haversineDistance(lat, lng, destLat, destLng);
+      const distanceToDestKM = distanceToDestMeters / 1000;
+
+      let etaText = "Calculating...";
+      if (avgSpeed >= SPEED_THRESHOLD) {
+        const timeLeft = distanceToDestMeters / avgSpeed;
+        lastKnownETA = formatTime(timeLeft);
+        etaText = lastKnownETA;
+      } else if (lastKnownETA) {
+        etaText = lastKnownETA + " (based on last good speed)";
+      }
+
+      const outputDiv = document.getElementById('output');
+      outputDiv.innerHTML = `
+        <h3>Live Location Data</h3>
+        <p><strong>Latitude:</strong> ${lat.toFixed(6)}</p>
+        <p><strong>Longitude:</strong> ${lng.toFixed(6)}</p>
+        <p><strong>Average Speed:</strong> ${avgSpeed > 0 ? (avgSpeed * 3.6).toFixed(2) + ' km/h' : 'Stopped / No data'}</p>
+        <p><strong>Distance to Destination:</strong> ${distanceToDestKM.toFixed(2)} km</p>
+        <p><strong>Estimated Time Left:</strong> ${etaText}</p>
+      `;
+
+      prevTimestamp = timestamp;
+      prevLat = lat;
+      prevLng = lng;
+    }
+
+    function errorCallback(error) {
+      document.getElementById('output').innerHTML = `<p>Error: ${error.message}</p>`;
+    }
+  </script>
 </body>
 </html>
